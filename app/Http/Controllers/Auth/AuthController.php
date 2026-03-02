@@ -24,7 +24,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        if (in_array($user->status ?? 'active', ['suspended', 'banned'], true)) {
+            return response()->json(['message' => 'Your account is restricted.'], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
+        $user->update(['last_login_at' => now()]);
 
         return response()->json([
             'message' => 'Login successful',
@@ -47,6 +52,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        if (in_array($user->status ?? 'active', ['suspended', 'banned'], true)) {
+            return response()->json(['message' => 'Your account is restricted.'], 403);
+        }
+
         $code = rand(100000, 999999);
 
         $user->loginVerifications()->create([
@@ -54,7 +63,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(10),
         ]);
 
-    Mail::to($user->email)->send(new LoginVerificationCode($user, $code));
+        Mail::to($user->email)->send(new LoginVerificationCode($user, $code));
 
         return response()->json(['message' => 'Verification code sent to email.']);
     }
@@ -83,6 +92,7 @@ class AuthController extends Controller
 
         // 👉 Issue token instead of session
         $token = $user->createToken('admin-login')->plainTextToken;
+        $user->update(['last_login_at' => now()]);
 
         return response()->json([
             'message' => 'Login successful',
@@ -104,6 +114,7 @@ class AuthController extends Controller
             'name'     => $request->name,
             'email'    => $request->email,
             'password' => Hash::make($request->password),
+            'status' => 'active',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -118,7 +129,7 @@ class AuthController extends Controller
     // Logout (revoke token)
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()?->tokens()?->delete();
 
         return response()->json(['message' => 'Logged out successfully']);
     }

@@ -14,6 +14,67 @@ use App\Models\NewsletterCampaign;
 class DashboardController extends Controller
 {
     /**
+     * Public-facing highlights for frontend hero/about statistics.
+     */
+    public function publicHighlights(Request $request)
+    {
+        $publishedProjects = Projects::where('status', 'published')->count();
+        $projectsDeliveredDisplay = $publishedProjects >= 10
+            ? '10+'
+            : (string) $publishedProjects;
+
+        $startedYear = (int) config('app.company_started_year', (int) now()->year);
+        $yearsOfExperience = max(0, (int) now()->year - $startedYear);
+
+        $clientSatisfactionTarget = (int) config('app.client_satisfaction_target', 98);
+        $supportAvailability = (string) config('app.support_availability', '24/7');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'highlights' => [
+                    [
+                        'key' => 'projects_delivered',
+                        'label' => 'Projects Delivered',
+                        'value' => $projectsDeliveredDisplay,
+                        'raw_value' => $publishedProjects,
+                        'unit' => null,
+                        'source' => 'published_projects_count',
+                    ],
+                    [
+                        'key' => 'client_satisfaction',
+                        'label' => 'Client Satisfaction',
+                        'value' => $clientSatisfactionTarget,
+                        'raw_value' => $clientSatisfactionTarget,
+                        'unit' => '%',
+                        'source' => 'configured_service_target',
+                    ],
+                    [
+                        'key' => 'support_availability',
+                        'label' => 'Support Availability',
+                        'value' => $supportAvailability,
+                        'raw_value' => $supportAvailability,
+                        'unit' => null,
+                        'source' => 'configured_support_window',
+                    ],
+                    [
+                        'key' => 'years_experience',
+                        'label' => 'Years of Experience',
+                        'value' => $yearsOfExperience,
+                        'raw_value' => $yearsOfExperience,
+                        'unit' => 'years',
+                        'source' => 'derived_from_company_started_year',
+                    ],
+                ],
+                'meta' => [
+                    'company_started_year' => $startedYear,
+                    'generated_at' => now()->toIso8601String(),
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Return comprehensive admin dashboard statistics.
      */
     public function stats(Request $request)

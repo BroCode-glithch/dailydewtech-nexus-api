@@ -59,3 +59,16 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## Project Documentation
+
+- [API Documentation](API_DOCUMENTATION.md)
+- [API Testing Guide](API_TESTING_GUIDE.md)
+- [Creative API Frontend Guide](CREATIVE_API_FRONTEND_GUIDE.md) 📖 **NEW**
+- [Creative API Testing](CREATIVE_API_TESTING.md) 🧪 **NEW**
+- [Creative Security Guide](CREATIVE_SECURITY.md) 🔒 **NEW**
+- [Newsletter API Frontend Guide](NEWSLETTER_API_FRONTEND_GUIDE.md)
+- [Dev Mailing Configuration](DEV-MAILING.md)
+- [Dev API Testing](DEV-API-TESTING.md)

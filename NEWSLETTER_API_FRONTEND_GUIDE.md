@@ -181,12 +181,20 @@ Authorization: Bearer <TOKEN>
 ```json
 {
     "subject": "New Product Updates",
-    "content": "Hello subscribers,\n\nWe just launched new features.",
+    "content": "<p>Hello subscribers,</p><p>We just launched new features.</p>",
+    "content_format": "html",
+    "template": "classic",
     "meta": {
         "segment": "all-active"
     }
 }
 ```
+
+### Content Options
+
+- `content_format`: `plain_text` | `html` (default: `plain_text`)
+- `template`: `none` | `classic` | `announcement` | `product_update`
+- Image support is handled by your HTML editor output (e.g. `<img src="...">`)
 
 ### Response
 
@@ -199,7 +207,9 @@ Authorization: Bearer <TOKEN>
         "total_recipients": 120,
         "sent_count": 118,
         "failed_count": 2,
-        "status": "failed"
+        "status": "failed",
+        "content_format": "html",
+        "template": "classic"
     }
 }
 ```
@@ -241,6 +251,78 @@ Authorization: Bearer <TOKEN>
         "last_page": 1,
         "per_page": 20,
         "total": 1
+    }
+}
+```
+
+---
+
+## Get Available Editor Templates
+
+**GET** `/admin/newsletter/templates`
+
+### Response
+
+```json
+{
+    "success": true,
+    "data": {
+        "content_formats": ["plain_text", "html"],
+        "templates": [
+            {
+                "key": "none",
+                "name": "No Template",
+                "description": "Use only editor content with no extra wrapper."
+            },
+            {
+                "key": "classic",
+                "name": "Classic",
+                "description": "Simple clean layout for general newsletters."
+            },
+            {
+                "key": "announcement",
+                "name": "Announcement",
+                "description": "Bold announcement style with clear header section."
+            },
+            {
+                "key": "product_update",
+                "name": "Product Update",
+                "description": "Sectioned layout for releases, fixes, and highlights."
+            }
+        ]
+    }
+}
+```
+
+---
+
+## Preview Broadcast Rendering
+
+**POST** `/admin/newsletter/preview`
+
+### Request Body
+
+```json
+{
+    "subject": "Platform Update",
+    "content": "<p>New features and improvements are live.</p>",
+    "content_format": "html",
+    "template": "product_update",
+    "preview_subscriber_name": "Alice"
+}
+```
+
+### Response
+
+```json
+{
+    "success": true,
+    "data": {
+        "subject": "Platform Update",
+        "content_format": "html",
+        "template": "product_update",
+        "rendered_content": "<div>...</div>",
+        "email_preview_html": "<!DOCTYPE html>..."
     }
 }
 ```
@@ -319,8 +401,10 @@ Use this block to build KPI cards and recent broadcast tables in the admin dashb
 2. Hook search/filter/sort controls to query params.
 3. Build pagination from Laravel pagination payload.
 4. For broadcast modal, submit to `POST /admin/newsletter/broadcast`.
-5. After success, refresh campaigns list and stats widgets.
-6. For campaign insights page, call `GET /admin/newsletter/campaigns/{id}`.
+5. For live preview, call `POST /admin/newsletter/preview` on editor changes (debounced).
+6. Load template options from `GET /admin/newsletter/templates`.
+7. After success, refresh campaigns list and stats widgets.
+8. For campaign insights page, call `GET /admin/newsletter/campaigns/{id}`.
 
 ---
 
@@ -352,9 +436,34 @@ export const getSubscribers = (token: string, params?: Record<string, any>) =>
 
 export const sendBroadcast = (
     token: string,
-    payload: { subject: string; content: string; meta?: Record<string, any> },
+    payload: {
+        subject: string;
+        content: string;
+        content_format?: "plain_text" | "html";
+        template?: "none" | "classic" | "announcement" | "product_update";
+        meta?: Record<string, any>;
+    },
 ) =>
     api.post("/admin/newsletter/broadcast", payload, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+
+export const getNewsletterTemplates = (token: string) =>
+    api.get("/admin/newsletter/templates", {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+
+export const previewBroadcast = (
+    token: string,
+    payload: {
+        subject: string;
+        content: string;
+        content_format?: "plain_text" | "html";
+        template?: "none" | "classic" | "announcement" | "product_update";
+        preview_subscriber_name?: string;
+    },
+) =>
+    api.post("/admin/newsletter/preview", payload, {
         headers: { Authorization: `Bearer ${token}` },
     });
 ```

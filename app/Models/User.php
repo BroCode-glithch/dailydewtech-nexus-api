@@ -6,13 +6,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Sanctum\HasApiTokens;
 use App\Models\LoginVerification;
+use App\Models\AuthorRequest;
+use App\Models\Story;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -21,9 +24,15 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
         'email',
         'password',
         'role',
+        'avatar',
+        'bio',
+        'status',
+        'last_login_at',
+        'two_factor_enabled',
     ];
 
     /**
@@ -46,11 +55,23 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime',
+            'two_factor_enabled' => 'boolean',
         ];
     }
 
     public function loginVerifications()
     {
         return $this->hasMany(LoginVerification::class);
+    }
+
+    public function authorRequests()
+    {
+        return $this->hasMany(AuthorRequest::class);
+    }
+
+    public function stories()
+    {
+        return $this->hasMany(Story::class, 'author_id');
     }
 }

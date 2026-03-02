@@ -1,3 +1,11 @@
+# Additional Modules
+
+- Creative storytelling API docs: see `CREATIVE_API_FRONTEND_GUIDE.md`
+- Latest creative admin additions include story/chapter delete + chapter unpublish + published-only admin list endpoint.
+- Chapter reader now supports optional long-content paging via `paginate_content`, `page`, `page_size` query params.
+- Media/image storage + frontend access contract is documented in the Creative guide under "Image Storage & Access Contract (Frontend)".
+- Public fallback media endpoint available: `GET /api/media/{id}` (optional thumbnail: `?variant=thumb`).
+
 # Daily Dew Tech API Documentation
 
 ## Base URL
@@ -107,14 +115,98 @@ GET /public/posts?page=1&per_page=10&status=published
 #### Get Single Post
 
 ```http
-GET /public/posts/{id}
+GET /public/posts/{id-or-slug}
 ```
+
+Optional long-content paging:
+
+```http
+GET /public/posts/{id-or-slug}?paginate_content=1&page=1&page_size=1800
+```
+
+Query params:
+
+- `paginate_content` (optional boolean, default: `false`)
+- `page` (optional integer, default: `1`)
+- `page_size` (optional integer chars, default: `1800`, range: `600..5000`)
+
+Behavior:
+
+- Accepts numeric `id` or current `slug`.
+- If an old slug is requested (from slug history), API responds with `301` redirect to the current slug URL.
+- Post slugs are generated on create and remain stable on normal updates.
+- When `paginate_content=1`, `content_html` returns only the requested page chunk and response includes `content_pagination` metadata (`current_page`, `total_pages`, `has_next`, `next_page`, etc.).
+
+#### Get Post Comments (Public)
+
+```http
+GET /public/posts/{id-or-slug}/comments?per_page=20
+```
+
+Returns paginated top-level comments for the post:
+
+- Top-level comments: `parent_id = null`
+- Inline thread count is provided as `replies_count`
+- Only `visible` comments are returned publicly
+
+Use the replies endpoint below to load thread replies on demand.
+
+Minimal response shape:
+
+```json
+{
+    "success": true,
+    "data": {
+        "data": [
+            {
+                "id": 10,
+                "body": "Great post!",
+                "parent_id": null,
+                "replies_count": 3,
+                "user": { "id": 5, "name": "Jane", "username": "jane" },
+                "children": []
+            }
+        ]
+    }
+}
+```
+
+#### Get Replies for a Comment Thread (Public, Paginated)
+
+```http
+GET /public/posts/comments/{comment_id}/replies?per_page=10&page=1&sort=latest
+```
+
+Returns visible replies where `parent_id = {comment_id}`.
+
+This endpoint supports inline “load more replies” UX for long threads.
+
+Query params:
+
+- `per_page` (optional, default: 10)
+- `page` (optional, default: 1)
+- `sort` (optional): `latest` (default) or `oldest`
+
+**Rich Text Note (TinyMCE):**
+
+- `content` is stored and returned as sanitized HTML.
+- Responses now include:
+    - `content_html` (ready to render with `dangerouslySetInnerHTML` in React)
+    - `content_text` (plain text fallback)
+    - `excerpt_text` (plain text excerpt)
 
 #### Get Published Projects
 
 ```http
 GET /public/projects?page=1&category=Web Development
 ```
+
+**Rich Text Note (TinyMCE):**
+
+- `description` is stored and returned as sanitized HTML.
+- Responses now include:
+    - `description_html` (ready-to-render HTML)
+    - `description_text` (plain text fallback)
 
 **Query Parameters:**
 
@@ -133,7 +225,154 @@ GET /public/projects/{id}/related
 GET /public/quotes/random
 ```
 
+#### Get Public Highlights (Homepage/About stats)
+
+```http
+GET /public/highlights
+```
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "data": {
+        "highlights": [
+            {
+                "key": "projects_delivered",
+                "label": "Projects Delivered",
+                "value": "10+",
+                "raw_value": 14,
+                "unit": null,
+                "source": "published_projects_count"
+            },
+            {
+                "key": "client_satisfaction",
+                "label": "Client Satisfaction",
+                "value": 98,
+                "raw_value": 98,
+                "unit": "%",
+                "source": "configured_service_target"
+            },
+            {
+                "key": "support_availability",
+                "label": "Support Availability",
+                "value": "24/7",
+                "raw_value": "24/7",
+                "unit": null,
+                "source": "configured_support_window"
+            },
+            {
+                "key": "years_experience",
+                "label": "Years of Experience",
+                "value": 3,
+                "raw_value": 3,
+                "unit": "years",
+                "source": "derived_from_company_started_year"
+            }
+        ]
+    }
+}
+```
+
+#### Social Share OG Routes (for React frontend)
+
+> These are **web routes**, not `/api` JSON endpoints.
+
+```http
+GET /og
+GET /share/projects/{slug-or-id}
+GET /share/blog/{slug-or-id}
+```
+
+**Why this exists:**
+
+- Social crawlers (Facebook, X/Twitter, LinkedIn, WhatsApp) do not execute client-side React code.
+- The Laravel share routes render OG/Twitter meta tags server-side so crawlers can read title, description, and image.
+- Human visitors are redirected immediately to the frontend app route after metadata is served.
+
+**Frontend consumption:**
+
+- For homepage sharing, use: `https://your-api-domain/og`
+- For project sharing, use: `https://your-api-domain/share/projects/{slug}`
+- For blog sharing, use: `https://your-api-domain/share/blog/{slug}`
+- Use these URLs in your share buttons/copy-link actions.
+- Keep normal app navigation on frontend routes (`/`, `/projects/{id}`, `/blog/{id}`).
+
+**What each route returns:**
+
+- `og:title`, `og:description`, `og:url`, `og:image`
+- `twitter:title`, `twitter:description`, `twitter:image`, `twitter:card`
+- HTML redirect to frontend route via meta refresh + JS fallback
+- Homepage OG includes dynamic project delivery count and company highlights
+
+**Configuration required:**
+
+- `APP_URL` must match your backend public domain.
+- `FRONTEND_URL` must match your frontend public domain.
+- Project thumbnails / post cover images should be reachable by absolute public URL.
+- Optional: place a default OG image at `/public/images/og-default.png` for fallback (used by homepage).
+
+**Quick verification checklist:**
+
+1. Open `https://your-api-domain/og` directly in browser (should redirect to frontend).
+2. View page source before redirect completes (should contain OG and Twitter tags with company highlights).
+3. Open `https://your-api-domain/share/projects/{slug}` to test project sharing.
+4. Test the same URLs in social debuggers (Facebook Share Debugger, Twitter Card Validator) to refresh crawler cache.
+
 ---
+
+## Authenticated Blog Comment Endpoints
+
+All endpoints below require:
+
+```http
+Authorization: Bearer {token}
+```
+
+### Create Comment or Reply
+
+```http
+POST /posts/{id-or-slug}/comments
+Content-Type: application/json
+
+{
+  "body": "This article was very helpful.",
+  "parent_id": null
+}
+```
+
+For replies, send `parent_id` as the target comment id:
+
+```json
+{
+    "body": "Thanks for sharing this point.",
+    "parent_id": 10
+}
+```
+
+### Edit Own Comment
+
+```http
+PATCH /posts/comments/{id}
+Content-Type: application/json
+
+{
+  "body": "Updated comment text"
+}
+```
+
+### Delete Comment
+
+```http
+DELETE /posts/comments/{id}
+```
+
+Authorization rules:
+
+- Comment owner can delete own comment
+- `admin | super_admin | moderator | editor` can delete any blog comment
+- Other users get `403 Forbidden`
 
 ## Admin Endpoints
 
@@ -251,7 +490,7 @@ Content-Type: application/json
 
 {
   "title": "My Post Title",
-  "content": "Post content here...",
+  "content": "<p><strong>Formatted post</strong> content from TinyMCE...</p>",
   "excerpt": "Optional short description",
   "cover_image": "https://example.com/image.jpg",
   "tags": ["web", "tech"],
@@ -260,6 +499,7 @@ Content-Type: application/json
 ```
 
 **Note:** `excerpt` is auto-generated from content if not provided.
+**Note:** `content` supports HTML from TinyMCE and is sanitized server-side before storage.
 
 #### Update Post
 
@@ -309,7 +549,7 @@ Content-Type: application/json
 
 {
   "title": "E-Commerce Platform",
-  "description": "Full description...",
+  "description": "<p>Full <em>formatted</em> description from TinyMCE...</p>",
   "category": "Web Development",
   "technologies": ["React", "Node.js"],
   "thumbnail": "https://example.com/thumb.jpg",
@@ -317,6 +557,8 @@ Content-Type: application/json
   "status": "published"
 }
 ```
+
+**Note:** `description` supports HTML from TinyMCE and is sanitized server-side before storage.
 
 #### Update/Delete Project
 
@@ -400,6 +642,51 @@ Authorization: Bearer {token}
 ```http
 GET /admin/quotes/inspire
 Authorization: Bearer {token}
+```
+
+---
+
+### Newsletter Management
+
+#### Get Editor Templates and Supported Formats
+
+```http
+GET /admin/newsletter/templates
+Authorization: Bearer {token}
+```
+
+#### Preview Broadcast Rendering
+
+```http
+POST /admin/newsletter/preview
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "subject": "Product Update",
+  "content": "<p>We shipped new improvements.</p>",
+  "content_format": "html",
+  "template": "product_update",
+  "preview_subscriber_name": "John"
+}
+```
+
+#### Send Broadcast (Plain Text or HTML)
+
+```http
+POST /admin/newsletter/broadcast
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "subject": "New Product Updates",
+  "content": "<p>Hello subscribers,</p><p>We just launched new features.</p>",
+  "content_format": "html",
+  "template": "classic",
+  "meta": {
+    "segment": "all-active"
+  }
+}
 ```
 
 ---

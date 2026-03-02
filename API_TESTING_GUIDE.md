@@ -362,11 +362,115 @@ Invoke-RestMethod -Uri "http://localhost/api/public/posts?search=web&per_page=5"
     -Method Get
 ```
 
+### Read Long Post by Pages
+
+```bash
+# Page 1
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/your-post-slug?paginate_content=1&page=1&page_size=1800" `
+    -Method Get
+
+# Page 2
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/your-post-slug?paginate_content=1&page=2&page_size=1800" `
+    -Method Get
+```
+
+Expected: `data.content_pagination` includes `current_page`, `total_pages`, `has_previous`, `has_next`, `previous_page`, and `next_page`.
+
 ### Filter by Tag
 
 ```bash
 Invoke-RestMethod -Uri "http://localhost/api/public/posts?tag=tech" `
     -Method Get
+```
+
+### Get Post Comments (Public)
+
+```bash
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/your-post-slug/comments?per_page=20" `
+    -Method Get
+```
+
+Expected: paginated top-level comments with `replies_count` for each comment.
+
+### Get Replies for a Comment Thread (Public)
+
+```bash
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/comments/YOUR_COMMENT_ID/replies?per_page=10&page=1&sort=latest" `
+    -Method Get
+```
+
+Expected: paginated replies for that parent comment only. Use this for “Load more replies”.
+
+To render oldest-first threads in UI:
+
+```bash
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/comments/YOUR_COMMENT_ID/replies?per_page=10&page=1&sort=oldest" `
+    -Method Get
+```
+
+### Create Post Comment (Auth Required)
+
+```bash
+$headers = @{
+    Authorization = "Bearer $adminToken"
+}
+
+$body = @{
+    body = "Very helpful article."
+    parent_id = $null
+} | ConvertTo-Json
+
+$comment = Invoke-RestMethod -Uri "http://localhost/api/posts/your-post-slug/comments" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body `
+    -ContentType "application/json"
+
+$commentId = $comment.data.id
+```
+
+### Reply to a Comment (Inline Thread)
+
+```bash
+$replyBody = @{
+    body = "Thanks, this helped me too."
+    parent_id = $commentId
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost/api/posts/your-post-slug/comments" `
+    -Method Post `
+    -Headers $headers `
+    -Body $replyBody `
+    -ContentType "application/json"
+```
+
+Then fetch thread page 1:
+
+```bash
+Invoke-RestMethod -Uri "http://localhost/api/public/posts/comments/$commentId/replies?per_page=10&page=1&sort=latest" `
+    -Method Get
+```
+
+### Edit Own Post Comment
+
+```bash
+$updateBody = @{
+    body = "Updated comment content"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost/api/posts/comments/$commentId" `
+    -Method Patch `
+    -Headers $headers `
+    -Body $updateBody `
+    -ContentType "application/json"
+```
+
+### Delete Post Comment
+
+```bash
+Invoke-RestMethod -Uri "http://localhost/api/posts/comments/$commentId" `
+    -Method Delete `
+    -Headers $headers
 ```
 
 ### Filter Projects by Category
@@ -389,6 +493,15 @@ try {
     $_.Exception.Response.StatusCode
 }
 ```
+
+### Test Old Slug Redirect (301)
+
+```bash
+# If a post slug was changed manually, old slug should redirect to the new slug URL
+curl -I http://localhost/api/public/posts/OLD_SLUG_HERE
+```
+
+Expected: `301 Moved Permanently` with `Location: /api/public/posts/NEW_SLUG`
 
 ### Test 401 Unauthorized
 
@@ -492,13 +605,14 @@ try {
 
 1. **Excerpt Auto-Generation**: If you don't provide an `excerpt` when creating a post, it will be automatically generated from the content (first 200 characters, HTML stripped).
 
-2. **Slug Auto-Generation**: Slugs are automatically generated from titles with a unique ID appended to prevent duplicates.
+2. **Slug Stability**: Slugs are generated on create and remain stable on normal updates (no random hash regeneration).
+3. **Manual Slug Change**: If admin explicitly updates `slug`, old slug is stored and requests to old slug return `301` to the current slug.
 
-3. **Rate Limiting**: Be aware of rate limits when testing:
+4. **Rate Limiting**: Be aware of rate limits when testing:
     - Authentication: 10/minute
     - Contact form: 5/minute
     - Admin auth: 5/minute
 
-4. **Default Filters**: Public endpoints default to showing only published content. Use `status=all` in admin routes to see all content.
+5. **Default Filters**: Public endpoints default to showing only published content. Use `status=all` in admin routes to see all content.
 
-5. **Pagination**: Default is 15 items per page. Adjust with `?per_page=N` parameter.
+6. **Pagination**: Default is 15 items per page. Adjust with `?per_page=N` parameter.

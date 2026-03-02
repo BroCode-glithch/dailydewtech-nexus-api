@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Projects;
+use App\Support\RichText;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -44,6 +45,9 @@ class ProjectsController extends Controller
         // Pagination
         $perPage = $request->input('per_page', 15);
         $projects = $query->paginate($perPage);
+        $projects->getCollection()->transform(function ($project) {
+            return $this->formatProjectPayload($project);
+        });
 
         return response()->json([
             'success' => true,
@@ -68,6 +72,9 @@ class ProjectsController extends Controller
         ]);
 
         $validated['slug'] = Str::slug($validated['title']) . '-' . uniqid();
+        if (isset($validated['description'])) {
+            $validated['description'] = RichText::sanitize($validated['description']);
+        }
 
         // Ensure technologies is properly encoded
         if (isset($validated['technologies'])) {
@@ -79,7 +86,7 @@ class ProjectsController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Project created successfully.',
-            'data' => $project
+            'data' => $this->formatProjectPayload($project)
         ], 201);
     }
 
@@ -89,7 +96,7 @@ class ProjectsController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $project
+            'data' => $this->formatProjectPayload($project)
         ]);
     }
 
@@ -104,7 +111,11 @@ class ProjectsController extends Controller
             ->latest()
             ->take(6)
             ->get();
-        return response()->json(['data' => $related]);
+        return response()->json([
+            'data' => $related->map(function ($relatedProject) {
+                return $this->formatProjectPayload($relatedProject);
+            })->values(),
+        ]);
     }
 
     /**
@@ -128,6 +139,9 @@ class ProjectsController extends Controller
         if (isset($validated['title'])) {
             $validated['slug'] = Str::slug($validated['title']) . '-' . uniqid();
         }
+        if (isset($validated['description'])) {
+            $validated['description'] = RichText::sanitize($validated['description']);
+        }
 
         // Ensure technologies is properly encoded
         if (isset($validated['technologies'])) {
@@ -139,7 +153,7 @@ class ProjectsController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Project updated successfully.',
-            'data' => $project
+            'data' => $this->formatProjectPayload($project)
         ]);
     }
 
@@ -152,5 +166,14 @@ class ProjectsController extends Controller
             'success' => true,
             'message' => 'Project deleted successfully.'
         ]);
+    }
+
+    private function formatProjectPayload($project): array
+    {
+        $payload = $project->toArray();
+        $payload['description_html'] = $project->description;
+        $payload['description_text'] = RichText::toPlainText($project->description, 2000) ?? '';
+
+        return $payload;
     }
 }

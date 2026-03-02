@@ -27,6 +27,12 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:8080'),
 
+    'company_started_year' => (int) env('COMPANY_STARTED_YEAR', 2023),
+
+    'client_satisfaction_target' => (int) env('CLIENT_SATISFACTION_TARGET', 98),
+
+    'support_availability' => env('SUPPORT_AVAILABILITY', '24/7'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\RequireRole;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
             'admin' => AdminOnly::class,
+            'role' => RequireRole::class,
         ]);
 
         // CSRF token validation is intentionally disabled for this API.
